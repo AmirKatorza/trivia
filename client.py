@@ -40,14 +40,10 @@ def login(conn):
         if cmd == chatlib.PROTOCOL_SERVER["login_ok_msg"]:
             print("Login successful!")
             return
-        elif cmd == chatlib.PROTOCOL_SERVER["login_failed_msg"]:
+        elif cmd == chatlib.PROTOCOL_SERVER["error_msg"]:
             print("Login failed. Please try again.")
         else:
             print(f"Received unexpected response from server: {cmd}")	
-
-
-def logout(conn):
-    build_and_send_message(conn, chatlib.PROTOCOL_CLIENT["logout_msg"], "")
 
 
 def build_and_send_message(conn, code, data):
@@ -65,8 +61,8 @@ def build_and_send_message(conn, code, data):
         print("Failed to build message. Exiting function.")
         return
 
-    # Print debug information
-    print(f"\nDebug print protocol message:\n{full_msg}")
+    # Debug print
+    print("[CLIENT] ", full_msg)
     
     try:
         # Send the encoded message to the connection
@@ -92,8 +88,11 @@ def recv_message_and_parse(conn):
             print("Connection closed or empty message received")
             return chatlib.ERROR_RETURN, chatlib.ERROR_RETURN
 
+        # Debug print
+        print("[SERVER] ", full_msg)
+
         # Parse the message using chatlib
-        cmd, data = chatlib.parse_message(full_msg)
+        cmd, data = chatlib.parse_message(full_msg)        
 
         # Check if parsing failed
         if cmd is chatlib.ERROR_RETURN and data is chatlib.ERROR_RETURN:
@@ -180,6 +179,11 @@ def get_logged_users(conn):
         print(f"Logged users:\n{users_data}")
     else:
         print(f"Unexpected response from server: {msg_code}")
+
+
+def logout(conn):
+    build_and_send_message(conn, chatlib.PROTOCOL_CLIENT["logout_msg"], "")
+
 	
 
 def main():

@@ -30,7 +30,7 @@ PROTOCOL_SERVER = {
 "wrong_answer_msg": "WRONG_ANSWER",
 "your_score_msg": "YOUR_SCORE",
 "all_score_msg": "ALL_SCORE",
-"login_failed_msg" : "ERROR",
+"error_msg" : "ERROR",
 "no_questions_msg": "NO_QUESTIONS"
 } # ..  Add more commands if needed
 
@@ -54,7 +54,7 @@ def build_message(cmd, data):
     
     # Get the length of the data as a string, and pad it to LENGTH_FIELD_LENGTH
 	data_length = str(len(data))
-	length_field_padded = "0" * (LENGTH_FIELD_LENGTH - len(data_length)) + data_length
+	length_field_padded = str(len(data)).zfill(LENGTH_FIELD_LENGTH)
     
     # Join everything together with the DELIMITER
 	full_msg = DELIMITER.join([cmd_padded, length_field_padded, data])
