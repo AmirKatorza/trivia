@@ -3,8 +3,10 @@
 ##############################################################################
 
 import socket
-import chatlib
 import select
+import random
+import chatlib
+
 
 
 # GLOBALS
@@ -210,7 +212,67 @@ def handle_login_message(conn, data):
         logged_users[client_address] = user_name
 
         build_and_send_message(conn, chatlib.PROTOCOL_SERVER["login_ok_msg"], "")
-        print(f"User {user_name} logged in successfully")	
+        print(f"User {user_name} logged in successfully")
+
+
+def create_random_question():
+    global questions
+
+    # Get a list of question IDs from the questions dictionary
+    question_ids = list(questions.keys())
+    
+    # Choose a random question ID from the list
+    random_question_id = random.choice(question_ids)
+
+    # Get question text and answers
+    question_text = questions[random_question_id]["question"]
+    question_answers = questions[random_question_id]["answers"]
+    
+    # Create the full question data
+    question_data = chatlib.join_data([str(random_question_id), question_text] + question_answers)
+    
+    return question_data    
+
+
+def handle_question_message(conn):
+    question_data = create_random_question()
+    build_and_send_message(conn, chatlib.PROTOCOL_SERVER["your_question_msg"], question_data)    
+
+
+def handle_answer_message(conn, username, answer_data):
+    global questions
+    
+    # Extract the question ID and user's answer using split_data
+    split_result = chatlib.split_data(answer_data, 2)
+
+    # Check if split_data returned an error
+    if split_result == [chatlib.ERROR_RETURN]:
+        send_error(conn, "Invalid answer format")
+        return
+    
+    # Unpack the split_result safely after validation
+    question_id, user_answer = split_result
+
+    # Convert question_id to int for comparison
+    try:
+        question_id = int(question_id)
+    except ValueError:
+        send_error(conn, "Invalid question ID format")
+        return
+
+    # Check if the question exists
+    if question_id not in questions:
+        send_error(conn, "Question ID not found.")
+        return
+
+    # Check if the user's answer matches the correct one
+    if int(user_answer) == questions[question_id]["correct"]:
+        users[username]["score"] += 5  # Update score if correct
+        build_and_send_message(conn, chatlib.PROTOCOL_SERVER["correct_answer_msg"], "")
+    else:
+        # Send back the correct answer if the user is wrong
+        correct_answer = str(questions[question_id]["correct"])
+        build_and_send_message(conn, chatlib.PROTOCOL_SERVER["wrong_answer_msg"], correct_answer)
 
 
 def handle_client_message(conn, cmd, data):
@@ -219,24 +281,34 @@ def handle_client_message(conn, cmd, data):
     Recieves: socket, message code and data
     Returns: None
     """
-    global logged_users	 # To be used later
+    global logged_users
     
+    # Validate command
     if cmd not in chatlib.PROTOCOL_CLIENT.values():
         send_error(conn, f"The command {cmd} is not recognized")
         return 
     
-    if conn.getpeername() not in logged_users.keys():
+    # Check if the user is logged in
+    user = logged_users.get(conn.getpeername())
+    if user is None:
         if cmd == chatlib.PROTOCOL_CLIENT["login_msg"]:
             handle_login_message(conn, data)
+        else:
+            send_error(conn, "Please log in first")
     else:
+        # Handle commands once logged in
         if cmd == chatlib.PROTOCOL_CLIENT["logout_msg"]:
             handle_logout_message(conn)
         elif cmd == chatlib.PROTOCOL_CLIENT["my_score_msg"]:
-            handle_getscore_message(conn, logged_users.get(conn.getpeername()))  # Use get() for safety
+            handle_getscore_message(conn, user)
         elif cmd == chatlib.PROTOCOL_CLIENT["highscore_msg"]:
             handle_highscore_message(conn)
         elif cmd == chatlib.PROTOCOL_CLIENT["logged_msg"]:
             handle_logged_message(conn)
+        elif cmd == chatlib.PROTOCOL_CLIENT["get_question_msg"]:
+            handle_question_message(conn)
+        elif cmd == chatlib.PROTOCOL_CLIENT["send_answer_msg"]:
+            handle_answer_message(conn, user, data)
         else:
             send_error(conn, "Unknown command after login")
 

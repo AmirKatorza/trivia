@@ -109,7 +109,7 @@ def split_data(msg, expected_fields):
 	"""
 	
 	count = msg.count(DATA_DELIMITER)
-	if count == expected_fields:
+	if count == expected_fields - 1:
 		return msg.split(DATA_DELIMITER)
 	
 	return [ERROR_RETURN]
@@ -127,8 +127,8 @@ def join_data(msg_fields):
 # Testing block
 if __name__ == "__main__":
 	# Test cases for split_data
-	print(split_data("username#password", 1))  # Expected: ['username', 'password']
-	print(split_data("user#name#pass#word", 2))  # Expected: [None] (too many fields)
+	print(split_data("username#password", 2))  # Expected: ['username', 'password']
+	print(split_data("user#name#pass#word", 3))  # Expected: [None] (too many fields)
 	print(split_data("username", 2))  # Expected: [None] (not enough fields)
 
 	# Test cases for join_data
