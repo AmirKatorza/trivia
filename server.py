@@ -138,7 +138,24 @@ def send_error(conn, error_msg):
 
 def handle_getscore_message(conn, username):
     global users
-    # Implement this in later chapters
+    if username not in users.keys():
+        send_error(conn, f"User {username} is not found!")
+    else:
+        user_score = users.get(username, {}).get("score", 0)  # Use get() to safely retrieve the score
+        build_and_send_message(conn, chatlib.PROTOCOL_SERVER["your_score_msg"], str(user_score))
+
+def handle_highscore_message(conn):
+    global users
+    users_score = {user: info.get("score", 0) for user, info in users.items()}  # Use get() to handle missing scores
+    sorted_dict = {key: value for key, value in sorted(users_score.items(), key=lambda item: item[1], reverse=True)}
+    full_msg = []
+    full_msg = "\n".join([f"{user}: {score}" for user, score in sorted_dict.items()])
+    build_and_send_message(conn, chatlib.PROTOCOL_SERVER["all_score_msg"], full_msg)
+
+def handle_logged_message(conn):
+    global logged_users
+    logged_users_list = ",".join(logged_users.values())
+    build_and_send_message(conn, chatlib.PROTOCOL_SERVER["logged_answer_msg"], logged_users_list)
 
 
 def handle_logout_message(conn):
@@ -148,7 +165,7 @@ def handle_logout_message(conn):
     Returns: chatlib.ERROR_RETURN
     """
     global logged_users
-    
+    logged_users.pop(conn.getpeername(), None)  # Safely remove client    
     conn.close()
 
 
@@ -180,13 +197,18 @@ def handle_login_message(conn, data):
         return
 
     # Check if the username exists in the system
-    if user_name not in users.keys():
+    if not users.get(user_name):  # Use get() to check if the user exists
         send_error(conn, "Username does not exist")
-    elif users[user_name]["password"] != password:  # Check if the password matches
+    elif users.get(user_name, {}).get("password") != password:  # Use get() to safely retrieve the password
         send_error(conn, "Password does not match")
     else:
         # Login successful, add the user to logged_users and send LOGIN_OK
-        logged_users[user_name] = conn  # Store the user and their connection
+        # Get the client's address using getpeername()
+        client_address = conn.getpeername()
+
+        # Add the client's address and username to the logged_users dictionary
+        logged_users[client_address] = user_name
+
         build_and_send_message(conn, chatlib.PROTOCOL_SERVER["login_ok_msg"], "")
         print(f"User {user_name} logged in successfully")	
 
@@ -195,14 +217,28 @@ def handle_client_message(conn, cmd, data):
     """
     Gets message code and data and calls the right function to handle command
     Recieves: socket, message code and data
-    Returns: chatlib.ERROR_RETURN
+    Returns: None
     """
     global logged_users	 # To be used later
     
     if cmd not in chatlib.PROTOCOL_CLIENT.values():
         send_error(conn, f"The command {cmd} is not recognized")
-    elif cmd == chatlib.PROTOCOL_CLIENT["login_msg"]:
-        handle_login_message(conn, data)   
+        return 
+    
+    if conn.getpeername() not in logged_users.keys():
+        if cmd == chatlib.PROTOCOL_CLIENT["login_msg"]:
+            handle_login_message(conn, data)
+    else:
+        if cmd == chatlib.PROTOCOL_CLIENT["logout_msg"]:
+            handle_logout_message(conn)
+        elif cmd == chatlib.PROTOCOL_CLIENT["my_score_msg"]:
+            handle_getscore_message(conn, logged_users.get(conn.getpeername()))  # Use get() for safety
+        elif cmd == chatlib.PROTOCOL_CLIENT["highscore_msg"]:
+            handle_highscore_message(conn)
+        elif cmd == chatlib.PROTOCOL_CLIENT["logged_msg"]:
+            handle_logged_message(conn)
+        else:
+            send_error(conn, "Unknown command after login")
 
 
 def main():
