@@ -62,7 +62,7 @@ def build_and_send_message(conn, code, data):
         return
 
     # Debug print
-    print("[CLIENT] ", full_msg)
+    # print("[CLIENT] ", full_msg)
     
     try:
         # Send the encoded message to the connection
@@ -89,7 +89,7 @@ def recv_message_and_parse(conn):
             return chatlib.ERROR_RETURN, chatlib.ERROR_RETURN
 
         # Debug print
-        print("[SERVER] ", full_msg)
+        # print("[SERVER] ", full_msg)
 
         # Parse the message using chatlib
         cmd, data = chatlib.parse_message(full_msg)        

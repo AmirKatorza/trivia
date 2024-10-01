@@ -91,7 +91,9 @@ def load_questions():
     """
     questions = {
         2313: {"question": "How much is 2+2", "answers": ["3", "4", "2", "1"], "correct": 2},
-        4122: {"question": "What is the capital of France?", "answers": ["Lion", "Marseille", "Paris", "Montpellier"], "correct": 3} 
+        4122: {"question": "What is the capital of France?", "answers": ["Lion", "Marseille", "Paris", "Montpellier"], "correct": 3},
+        4232: {"question": "What is the capital of Israel?", "answers": ["Jerusalem", "Tel-Aviv", "Beer-Sheva", "Haifa"], "correct": 1},
+        3465: {"question": "What is the capital of England?", "answers": ["Liverpool", "Bristol", "Manchester", "London"], "correct": 4}
     }
     
     return questions
