@@ -408,6 +408,15 @@ def main():
         except KeyboardInterrupt:
             # Handle server shutdown (Ctrl+C on the server)
             print("\nServer is shutting down")
+
+            # Notify connected clients about the shutdown
+            for client_socket in client_sockets:
+                try:
+                    client_socket.send("Server is shutting down...".encode())
+                    client_socket.close()
+                except OSError:
+                    pass
+
             break
 
     server_socket.close()
