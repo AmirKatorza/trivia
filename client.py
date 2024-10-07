@@ -142,7 +142,7 @@ def play_question(conn):
         return
 
     # Parse and print the question
-    question_parts = chatlib.split_data(question_data, 5)  # Expecting 6 parts: id + question + 4 answers
+    question_parts = chatlib.split_data(question_data, 6)  # Expecting 6 parts: id + question + 4 answers
     if question_parts == [chatlib.ERROR_RETURN]:
         print("Error: Invalid question format received from server.")
         return

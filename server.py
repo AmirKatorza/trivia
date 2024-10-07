@@ -8,18 +8,23 @@ import random
 import chatlib
 
 
-
 # GLOBALS
 users = {}  # {user_name: {"password": , "score": , "questions_asked": []}}
 questions = {}  # {qustion_key: ["question", "answer1", "answer2", "answer2", "answer4", "num_correct_answer"]}
 logged_users = {}  # a dictionary of client hostnames to usernames - will be used later
+messages_to_send  = []
 
-ERROR_MSG = "Error! "
+ERROR_MSG = "Error!"
 SERVER_PORT = 5678
 SERVER_IP = "127.0.0.1"
 
 
 # HELPER SOCKET METHODS
+
+def print_client_sockets(client_sockets):
+    for c in client_sockets:
+        print("\t", c.getpeername())
+
 
 def build_and_send_message(conn, code, msg):
     """
@@ -28,6 +33,8 @@ def build_and_send_message(conn, code, msg):
     Parameters: conn (socket object), code (str), data (str)
     Returns: Nothing
     """
+    global messages_to_send
+    
     # Build the message using chatlib
     full_msg = chatlib.build_message(code, msg)
 
@@ -39,11 +46,7 @@ def build_and_send_message(conn, code, msg):
     # Debug print
     print("[SERVER] ", full_msg) 
     
-    try:
-        # Send the encoded message to the connection
-        conn.send(full_msg.encode())
-    except Exception as e:
-        print(f"Error sending message: {e}")
+    messages_to_send.append((conn, full_msg))    
 
 
 def recv_message_and_parse(conn):
@@ -164,12 +167,20 @@ def handle_logged_message(conn):
 
 def handle_logout_message(conn):
     """
-    Closes the given socket (in later chapters, also remove user from logged_users dictioary)
-    Recieves: socket
+    Closes the given socket (in later chapters, also remove user from logged_users dictionary)
+    Receives: socket
     Returns: chatlib.ERROR_RETURN
     """
     global logged_users
-    logged_users.pop(conn.getpeername(), None)  # Safely remove client    
+    
+    # Check if the client is in logged_users to avoid KeyError
+    client_address = conn.getpeername()
+    if client_address in logged_users:
+        print(f"User {logged_users[client_address]} has left the game!")
+        logged_users.pop(client_address, None)  # Safely remove client
+    else:
+        print(f"Unknown user from {client_address} disconnected.")
+    
     conn.close()
 
 
@@ -181,19 +192,10 @@ def handle_login_message(conn, data):
     Returns: chatlib.ERROR_RETURN (sends response to client).
     """
     global users  # Dictionary of users, with username as key and password stored in it
-    global logged_users  # Dictionary to track logged-in users
-
-    # Parse the incoming message
-    cmd, msg = chatlib.parse_message(data)
-
-    # Check if parsing failed or the command is not LOGIN
-    if cmd is chatlib.ERROR_RETURN or cmd != chatlib.PROTOCOL_CLIENT["login_msg"]:
-        print("Failed to parse message or invalid command received")
-        send_error(conn, "Failed to parse message or invalid command")
-        return
+    global logged_users  # Dictionary to track logged-in users    
 
     # Split the message into username and password
-    user_name, password = chatlib.split_data(msg, 2)
+    user_name, password = chatlib.split_data(data, 2)
 
     # Validate the split data
     if user_name is chatlib.ERROR_RETURN or password is chatlib.ERROR_RETURN:  # Check for split errors
@@ -319,44 +321,89 @@ def main():
     # Initializes global users and questions dicionaries using load functions, will be used later
     global users
     global questions
-
+    global messages_to_send
+    
     # Load the users and questions before starting the server
     users = load_user_database()   # Load user data
     questions = load_questions()   # Load questions
 
     print("Welcome to Trivia Server!")
+    
+    # Set up the server socket
     server_socket = setup_socket()
+
+    # Keep track of client sockets and messages to send
+    client_sockets = []
     
     while True:
         try:
-            # Accept new client connections
-            client_socket, client_address = server_socket.accept()
-            print(f"New client joined! {client_address}")
-            
-            while True:
-                try:
-                    # Receive and parse client message
-                    cmd, data = recv_message_and_parse(client_socket)
+            ready_to_read, ready_to_write, in_error = select.select([server_socket] + client_sockets, client_sockets, [])
+
+            # Handle ready_to_read sockes
+            for current_socket in ready_to_read:
+                if current_socket is server_socket:
+                    # Accept new client connections
+                    client_socket, client_address = server_socket.accept()
+                    client_sockets.append(client_socket)
+                    print(f"New client joined! Address: {client_address}, Total clients: {len(client_sockets)}")
+                    print_client_sockets(client_sockets)
+                else:
+                     # Handle data from an existing client
+                     print("New data from client")
+                     try:
+                        # Receive and parse client message
+                        cmd, data = recv_message_and_parse(current_socket)
                     
-                    # If client disconnects or sends an empty message
-                    if cmd == chatlib.ERROR_RETURN:
-                        print(f"Connection with {client_address} closed")
-                        break
+                        # If client disconnects or sends an empty message
+                        if cmd == chatlib.ERROR_RETURN:
+                            print(f"Connection with {current_socket.getpeername()} closed")
+                            client_sockets.remove(current_socket)
+                            current_socket.close()
+                            print(f"Total clients: {len(client_sockets)}")
+                            print_client_sockets(client_sockets)
+                            continue
                     
-                    # If the client logs out
-                    if cmd == chatlib.PROTOCOL_CLIENT["logout_msg"]:
-                        handle_logout_message(client_socket)
-                        break
+                        # If the client logs out
+                        if cmd == chatlib.PROTOCOL_CLIENT["logout_msg"]:
+                            handle_logout_message(current_socket)
+                            client_sockets.remove(current_socket)
+                            print(f"Total clients: {len(client_sockets)}")
+                            print_client_sockets(client_sockets)
+                            continue
                     
-                    # Route the message to the appropriate handler
-                    handle_client_message(client_socket, cmd, data)                
+                        # Route the message to the appropriate handler
+                        handle_client_message(current_socket, cmd, data)                
                 
-                except (ConnectionResetError, ConnectionAbortedError, OSError) as e:
-                    # Handle the case where the client disconnected unexpectedly
-                    print(f"Client {client_address} disconnected abruptly: {e}")
-                    break
+                     except (ConnectionResetError, ConnectionAbortedError, OSError) as e:
+                        # Handle the case where the client disconnected unexpectedly
+                        print(f"Client {current_socket.getpeername()} disconnected abruptly: {e}")
+                        handle_logout_message(current_socket)
+                        client_sockets.remove(current_socket) 
+                        print(f"Total clients: {len(client_sockets)}")                       
+                        print_client_sockets(client_sockets)
+                        continue
             
-            client_socket.close()
+            # Handle messages waiting to be sent
+            
+            msg_to_remove = []
+            
+            for message in messages_to_send:
+                current_socket, data = message
+                if current_socket in ready_to_write:
+                    try:
+                        current_socket.send(data.encode())
+                        msg_to_remove.append(message)
+                    except OSError as e:
+                        print(f"Error sending message to {current_socket.getpeername()}: {e}")
+                        handle_logout_message(current_socket)
+                        client_sockets.remove(current_socket)                        
+                        print(f"Total clients: {len(client_sockets)}")                       
+                        print_client_sockets(client_sockets)
+            
+            # Remove successfully sent messages
+            for message in msg_to_remove:
+                messages_to_send.remove(message)
+            
         
         except KeyboardInterrupt:
             # Handle server shutdown (Ctrl+C on the server)
