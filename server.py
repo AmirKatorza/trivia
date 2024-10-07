@@ -357,8 +357,8 @@ def main():
                         # If client disconnects or sends an empty message
                         if cmd == chatlib.ERROR_RETURN:
                             print(f"Connection with {current_socket.getpeername()} closed")
+                            handle_logout_message(current_socket)
                             client_sockets.remove(current_socket)
-                            current_socket.close()
                             print(f"Total clients: {len(client_sockets)}")
                             print_client_sockets(client_sockets)
                             continue
