@@ -341,15 +341,33 @@ def handle_login_message(conn, data):
         print(f"User {user_name} logged in successfully")
 
 
-def create_random_question():
-    global questions
-
-    # Get a list of question IDs from the questions dictionary
-    question_ids = list(questions.keys())
+def create_random_question(username):
+    """
+    Returns a random question that the user has not been asked before.
+    If all questions have been asked, returns None.
     
-    # Choose a random question ID from the list
-    random_question_id = random.choice(question_ids)
-
+    :param username: the user requesting the question
+    :return: a tuple (question_data, question_id) or None if no new questions available
+    """
+    global users
+    global questions
+    
+    # Get the set of question IDs the user has been asked
+    asked_questions = set(users[username]["questions_asked"])
+    
+    # Get the set of all question IDs
+    all_question_ids = set(questions.keys())
+    
+    # Get the set of remaining questions by subtracting asked questions from all questions
+    remaining_questions = all_question_ids - asked_questions
+    
+    # If no remaining questions, return None
+    if not remaining_questions:
+        return None
+    
+    # Choose a random question from the remaining ones
+    random_question_id = random.choice(list(remaining_questions))
+    
     # Get question text and answers
     question_text = questions[random_question_id]["question"]
     question_answers = questions[random_question_id]["answers"]
@@ -357,12 +375,34 @@ def create_random_question():
     # Create the full question data
     question_data = chatlib.join_data([str(random_question_id), question_text] + question_answers)
     
-    return question_data    
+    return question_data, random_question_id    
 
 
-def handle_question_message(conn):
-    question_data = create_random_question()
-    build_and_send_message(conn, chatlib.PROTOCOL_SERVER["your_question_msg"], question_data)    
+def handle_question_message(conn, username):
+    """
+    Sends a random question to the user, ensuring the user has not been asked the question before.
+    If no new questions are available, sends a message indicating all questions have been asked.
+    
+    :param conn: socket connection
+    :param username: the user requesting the question
+    """
+    global users
+    
+    # Get a new random question for the user
+    result = create_random_question(username)
+    
+    if result is None:
+        # No new questions available, send appropriate message
+        build_and_send_message(conn, chatlib.PROTOCOL_SERVER["no_questions_msg"], "")
+    else:
+        # Extract question data and question ID
+        question_data, question_id = result
+        
+        # Add the question ID to the list of questions the user has been asked
+        users[username]["questions_asked"].append(question_id)
+        
+        # Send the question to the user
+        build_and_send_message(conn, chatlib.PROTOCOL_SERVER["your_question_msg"], question_data)    
 
 
 def handle_answer_message(conn, username, answer_data):
@@ -434,7 +474,7 @@ def handle_client_message(conn, cmd, data):
         elif cmd == chatlib.PROTOCOL_CLIENT["logged_msg"]:
             handle_logged_message(conn)
         elif cmd == chatlib.PROTOCOL_CLIENT["get_question_msg"]:
-            handle_question_message(conn)
+            handle_question_message(conn, user)
         elif cmd == chatlib.PROTOCOL_CLIENT["send_answer_msg"]:
             handle_answer_message(conn, user, data)
         else:
