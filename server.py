@@ -86,34 +86,148 @@ def recv_message_and_parse(conn):
 
 # Data Loaders #
 
-def load_questions():
+def load_questions(file_path='questions.txt'):
     """
-    Loads questions bank from file	## FILE SUPPORT TO BE ADDED LATER
-    Recieves: -
-    Returns: questions dictionary
-    """
-    questions = {
-        2313: {"question": "How much is 2+2", "answers": ["3", "4", "2", "1"], "correct": 2},
-        4122: {"question": "What is the capital of France?", "answers": ["Lion", "Marseille", "Paris", "Montpellier"], "correct": 3},
-        4232: {"question": "What is the capital of Israel?", "answers": ["Jerusalem", "Tel-Aviv", "Beer-Sheva", "Haifa"], "correct": 1},
-        3465: {"question": "What is the capital of England?", "answers": ["Liverpool", "Bristol", "Manchester", "London"], "correct": 4}
-    }
+    Loads game questions from a text file into the questions dictionary.
+    Format of each line in the text file:
+    question|answer1|answer2|answer3|answer4|correct_answer_number
     
+    :param file_path: path to the questions file
+    :return: dictionary of questions
+    """
+    questions = {}
+    try:
+        with open(file_path, 'r') as f:
+            for i, line in enumerate(f, start=1):
+                # Remove whitespace and split the line by '|'
+                parts = line.strip().split('|')
+                if len(parts) != 6:
+                    continue  # Skip invalid lines
+
+                question, answer1, answer2, answer3, answer4, correct_answer = parts
+                
+                # Store data in the questions dictionary
+                questions[i] = {
+                    "question": question,
+                    "answers": [answer1, answer2, answer3, answer4],
+                    "correct": int(correct_answer)  # Convert the correct answer number to an integer
+                }
+        
+    except FileNotFoundError:
+        print(f"File '{file_path}' not found. Creating new file with default questions...")
+        
+        # Create default questions with consistent IDs
+        questions = {
+            1: {
+                "question": "How much is 2+2?", 
+                "answers": ["3", "4", "2", "1"], 
+                "correct": 2
+            },
+            2: {
+                "question": "What is the capital of France?", 
+                "answers": ["Lion", "Marseille", "Paris", "Montpellier"], 
+                "correct": 3
+            },
+            3: {
+                "question": "What is the capital of Israel?", 
+                "answers": ["Jerusalem", "Tel-Aviv", "Beer-Sheva", "Haifa"], 
+                "correct": 1
+            },
+            4: {
+                "question": "What is the capital of England?", 
+                "answers": ["Liverpool", "Bristol", "Manchester", "London"], 
+                "correct": 4
+            }
+        }
+
+        # Save default questions to file
+        save_questions(questions, file_path)
+    except Exception as e:
+        print(f"Error loading questions file: {e}")
+        
     return questions
 
+def save_questions(questions, file_path='questions.txt'):
+    """
+    Saves the questions dictionary to a text file.
+    
+    Args:
+    questions (dict): Dictionary containing question data
+    file_path (str): Path to the file where the data should be saved
+    """
+    try:
+        with open(file_path, "w") as file:
+            for q_id, data in questions.items():
+                # Join answers with '|' and write the line in the correct format
+                answers = "|".join(data["answers"])
+                file.write(f"{q_id}|{data['question']}|{answers}|{data['correct']}\n")
+    except Exception as e:
+        print(f"Error saving questions file: {e}")
 
-def load_user_database():
+
+
+def load_user_database(file_path='users.txt'):
     """
-    Loads users list from file	## FILE SUPPORT TO BE ADDED LATER
-    Recieves: -
-    Returns: user dictionary
+    Loads user information from a text file into the users dictionary.
+    Format of each line in the text file:
+    username|password|score|question_id1,question_id2,...
+    
+    :param file_path: path to the users file
+    :return: dictionary of users
     """
-    users = {
-        "test": {"password": "test", "score": 0, "questions_asked": []},
-        "yossi": {"password": "123", "score": 50, "questions_asked": []},
-        "master": {"password": "master", "score": 200, "questions_asked": []}
-    }
+    users = {}
+    try:
+        with open(file_path, 'r') as f:
+            for line in f:
+                # Remove whitespace and split the line by '|'
+                parts = line.strip().split('|')
+                if len(parts) != 4:
+                    continue  # Skip invalid lines
+
+                username, password, score, questions_asked = parts
+                
+                # Parse questions_asked as a list
+                questions_asked_list = questions_asked.split(',') if questions_asked else []
+                
+                # Store data in the users dictionary
+                users[username] = {
+                    "password": password,
+                    "score": int(score),  # Convert score to an integer
+                    "questions_asked": questions_asked_list  # Store the list of asked question IDs
+                }
+        
+    except FileNotFoundError:
+        print(f"File '{file_path}' not found. Creating new file with default users...")
+        users = {
+            "test": {"password": "test", "score": 0, "questions_asked": []},
+            "yossi": {"password": "123", "score": 50, "questions_asked": []},
+            "master": {"password": "master", "score": 200, "questions_asked": []}
+            }
+        # Save default users to file
+        save_user_database(users)
+    except Exception as e:
+        print(f"Error loading users file: {e}")
+                
     return users
+
+
+def save_user_database(users, file_path='users.txt'):
+    """
+    Saves the users dictionary to a text file.
+    
+    Args:
+    users (dict): Dictionary containing user data
+    file_path (str): Path to the file where the data should be saved
+    """
+    try:
+        with open(file_path, "w") as file:
+            for username, data in users.items():
+                # Convert the questions_asked list to a comma-separated string
+                questions_asked_str = ','.join(data['questions_asked']) if data['questions_asked'] else ''
+                # Write the data in the format 'username|password|score|questions_asked'
+                file.write(f"{username}|{data['password']}|{data['score']}|{questions_asked_str}\n")
+    except Exception as e:
+        print(f"Error saving users file: {e}")    
 
 
 # SOCKET CREATOR
@@ -323,9 +437,9 @@ def main():
     global questions
     global messages_to_send
     
-    # Load the users and questions before starting the server
-    users = load_user_database()   # Load user data
-    questions = load_questions()   # Load questions
+    # Load users and questions from text files
+    users = load_user_database()   # Load users from users.txt
+    questions = load_questions()   # Load questions from questions.txt
 
     print("Welcome to Trivia Server!")
     
