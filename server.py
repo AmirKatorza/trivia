@@ -227,7 +227,15 @@ def save_user_database(users, file_path='users.txt'):
                 # Write the data in the format 'username|password|score|questions_asked'
                 file.write(f"{username}|{data['password']}|{data['score']}|{questions_asked_str}\n")
     except Exception as e:
-        print(f"Error saving users file: {e}")    
+        print(f"Error saving users file: {e}")
+
+
+def save_all_data():
+    """
+    Saves both users and questions data to their respective files
+    """
+    save_user_database(users)
+    save_questions(questions)
 
 
 # SOCKET CREATOR
@@ -359,6 +367,7 @@ def handle_question_message(conn):
 
 def handle_answer_message(conn, username, answer_data):
     global questions
+    global users
     
     # Extract the question ID and user's answer using split_data
     split_result = chatlib.split_data(answer_data, 2)
@@ -386,6 +395,7 @@ def handle_answer_message(conn, username, answer_data):
     # Check if the user's answer matches the correct one
     if int(user_answer) == questions[question_id]["correct"]:
         users[username]["score"] += 5  # Update score if correct
+        save_user_database(users)
         build_and_send_message(conn, chatlib.PROTOCOL_SERVER["correct_answer_msg"], "")
     else:
         # Send back the correct answer if the user is wrong
@@ -522,6 +532,7 @@ def main():
         except KeyboardInterrupt:
             # Handle server shutdown (Ctrl+C on the server)
             print("\nServer is shutting down")
+            save_all_data()  # Save data before shutting down
 
             # Notify connected clients about the shutdown
             for client_socket in client_sockets:
