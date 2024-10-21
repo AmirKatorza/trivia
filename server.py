@@ -6,6 +6,8 @@ import socket
 import select
 import random
 import chatlib
+import requests as r
+import html
 
 
 # GLOBALS
@@ -85,6 +87,48 @@ def recv_message_and_parse(conn):
 
 
 # Data Loaders #
+
+def load_questions_from_web():
+    questions = {}
+    
+    try:
+        response = r.get("https://opentdb.com/api.php?amount=50&type=multiple")
+        response.raise_for_status()  # Will raise an HTTPError for bad responses
+
+        data = response.json()  # This already returns a dictionary (or list)
+
+        # Ensure we have results in the expected format
+        if "results" not in data:
+            print("Unexpected data structure from API")
+            return questions
+
+        for question_no, question in enumerate(data["results"], start=1):
+            # Decode HTML entities in questions and answers
+            question_text = html.unescape(question["question"])
+            correct_answer = html.unescape(question["correct_answer"])
+            incorrect_answers = [html.unescape(ans) for ans in question["incorrect_answers"]]
+
+            # Combine correct and incorrect answers, and shuffle them
+            all_answers = incorrect_answers + [correct_answer]
+            random.shuffle(all_answers)
+
+            # Find the index of the correct answer in the shuffled list
+            correct_answer_index = all_answers.index(correct_answer) + 1  # Adding 1 to make it 1-based indexing
+
+            # Store the question and answers in the desired format
+            questions[question_no] = {
+                "question": question_text,
+                "answers": all_answers,
+                "correct": correct_answer_index  # 1-based index of the correct answer
+            }
+        
+    except r.RequestException as e:
+        print(f"Error fetching questions: {e}")
+    except ValueError:
+        print("Error parsing the response as JSON")
+    
+    return questions
+
 
 def load_questions(file_path='questions.txt'):
     """
@@ -489,7 +533,7 @@ def main():
     
     # Load users and questions from text files
     users = load_user_database()   # Load users from users.txt
-    questions = load_questions()   # Load questions from questions.txt
+    questions = load_questions_from_web()   # Load questions from the web
 
     print("Welcome to Trivia Server!")
     
