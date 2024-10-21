@@ -121,6 +121,7 @@ def load_questions_from_web():
                 "answers": all_answers,
                 "correct": correct_answer_index  # 1-based index of the correct answer
             }
+        print("Question DB download was completed")
         
     except r.RequestException as e:
         print(f"Error fetching questions: {e}")
